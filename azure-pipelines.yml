@@ -1,33 +1,35 @@
 trigger:
-- main  # Run the pipeline on pushes to the 'main' branch
+- main  # Trigger the pipeline when changes are pushed to the main branch
 
 stages:
-# 🔹 Build Stage
+# Build Stage
 - stage: Build
   displayName: 'Build Stage'
   jobs:
   - job: Build
-    displayName: 'Build Function App'
+    displayName: 'Build the Function App'
     pool:
       vmImage: 'ubuntu-latest'
     steps:
     - task: NodeTool@0
       inputs:
-        versionSpec: '18.x'  # Use Node.js 18 (or latest)
+        versionSpec: '16.x'  # Set Node.js version
     - script: |
         npm install
-      displayName: 'Install Dependencies'
+      displayName: 'Install dependencies'
     - task: ArchiveFiles@2
       inputs:
-        rootFolderOrFile: '$(Build.SourcesDirectory)'  # Archive all source files
+        rootFolderOrFile: '$(System.DefaultWorkingDirectory)'  # Archive function files
         includeRootFolder: false
         archiveType: 'zip'
         archiveFile: '$(Build.ArtifactStagingDirectory)/functionapp.zip'
         replaceExistingArchive: true
-    - publish: $(Build.ArtifactStagingDirectory)/functionapp.zip
-      artifact: functionapp
+    - task: PublishBuildArtifacts@1
+      inputs:
+        pathToPublish: '$(Build.ArtifactStagingDirectory)/functionapp.zip'
+        artifactName: 'drop'
 
-# 🔹 Test Stage
+# Test Stage
 - stage: Test
   displayName: 'Test Stage'
   dependsOn: Build
@@ -39,21 +41,20 @@ stages:
     steps:
     - script: |
         npm test
-      displayName: 'Run Tests'
+      displayName: 'Run Unit Tests'
 
-# 🔹 Deploy Stage
+# Deploy Stage
 - stage: Deploy
-  displayName: 'Deploy Stage'
+  displayName: 'Deploy to Azure'
   dependsOn: Test
   jobs:
   - job: Deploy
-    displayName: 'Deploy to Azure Function'
+    displayName: 'Deploy Function to Azure'
     pool:
       vmImage: 'ubuntu-latest'
     steps:
     - task: AzureFunctionApp@1
       inputs:
-        azureSubscription: 'Azure-Connection'   # Replace with your Azure Service Connection
-        appType: 'functionApp'
-        appName: 'myAzureFunctionApp'           # Replace with your Function App name
-        package: '$(Pipeline.Workspace)/functionapp/functionapp.zip'
+        azureSubscription: 'Azure-Connection'  # Replace with your service connection name
+        appName: 'MyFunctionApp'         # Replace with your Azure Function App name
+        package: '$(Build.ArtifactStagingDirectory)/functionapp.zip'
